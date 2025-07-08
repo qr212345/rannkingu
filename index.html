@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>レートランキング（観覧専用）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .crown {
+      animation: shine 2s infinite;
+    }
+    @keyframes shine {
+      0%, 100% { filter: drop-shadow(0 0 5px gold); }
+      50% { filter: drop-shadow(0 0 15px gold); }
+    }
+    .starburst {
+      animation: starpop 1s ease-out forwards;
+    }
+    @keyframes starpop {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1.2); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-4">
+  <h1 class="text-2xl font-bold mb-4">🏆 レートランキング</h1>
+  <div class="overflow-x-auto">
+    <table class="table-auto w-full bg-white rounded shadow">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="p-2">順位</th>
+          <th class="p-2">名前</th>
+          <th class="p-2">レート</th>
+          <th class="p-2">変動</th>
+          <th class="p-2">称号</th>
+        </tr>
+      </thead>
+      <tbody id="rankingTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let previousData = [];
+
+    function getTitle(player) {
+      if (player.rate >= 80) return "王者";
+      if (player.rate < 40) return "ルーキー";
+      if (player.consecutiveWins >= 3) return "勝ち逃げ";
+      if (player.matchesPlayed >= 10) return "皆勤王";
+      return "";
+    }
+
+    function renderRanking(players) {
+      const tbody = document.getElementById("rankingTable");
+      tbody.innerHTML = "";
+      const sorted = [...players].sort((a, b) => b.rate - a.rate);
+
+      sorted.forEach((p, index) => {
+        const tr = document.createElement("tr");
+        const isFirst = index === 0;
+        const delta = p.rateChange || 0;
+        const deltaClass = delta > 0 ? "text-green-600" : (delta < 0 ? "text-red-500" : "text-gray-400");
+        const deltaText = delta > 0 ? `+${delta}` : delta;
+        const title = getTitle(p);
+
+        tr.className = `text-center ${isFirst ? 'bg-yellow-100 font-bold' : ''}`;
+        tr.innerHTML = `
+          <td class="p-2">${index + 1}</td>
+          <td class="p-2 flex items-center justify-center gap-1">
+            ${isFirst ? '<span class="crown">👑</span>' : ''}
+            <span>${p.name}</span>
+            ${p.firstTimeTop ? '<span class="text-yellow-400 starburst">⭐</span>' : ''}
+          </td>
+          <td class="p-2">${p.rate}</td>
+          <td class="p-2 ${deltaClass}">${deltaText}</td>
+          <td class="p-2">${title}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 1. postMessage でデータを受け取る
+    window.addEventListener("message", (event) => {
+      if (!Array.isArray(event.data)) return;
+      renderRanking(event.data);
+      previousData = event.data;
+    });
+
+    // 2. fallback: localStorage polling
+    setInterval(() => {
+      const raw = localStorage.getItem("players");
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (JSON.stringify(data) !== JSON.stringify(previousData)) {
+        renderRanking(data);
+        previousData = data;
+      }
+    }, 3000);
+  </script>
+</body>
+</html>
