@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>レートランキング（観覧専用）</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -25,14 +25,20 @@
 <body class="bg-gray-100 p-4">
   <h1 class="text-2xl font-bold mb-4">🏆 レートランキング</h1>
   <div class="overflow-x-auto">
-    <table class="table-auto w-full bg-white rounded shadow">
+    <table class="table-auto w-full bg-white rounded shadow text-center">
       <thead class="bg-gray-200">
         <tr>
           <th class="p-2">順位</th>
           <th class="p-2">名前</th>
-          <th class="p-2">レート</th>
+          <th class="p-2">合計レート</th>
+          <th class="p-2">勝率</th>
+          <th class="p-2">前回順位</th>
+          <th class="p-2">今回順位</th>
           <th class="p-2">変動</th>
-          <th class="p-2">称号</th>
+          <th class="p-2">ボーナスポイント</th>
+          <th class="p-2">特別ボーナス</th>
+          <th class="p-2">1位との差</th>
+          <th class="p-2">コメント・称号</th>
         </tr>
       </thead>
       <tbody id="rankingTable"></tbody>
@@ -42,39 +48,67 @@
   <script>
     let previousData = [];
 
+    // 勝率のフォーマット（小数点以下2桁％表示）
+    function formatWinRate(player) {
+      if (!player.wins || !player.totalGames || player.totalGames === 0) return "-";
+      return ((player.wins / player.totalGames) * 100).toFixed(2) + "%";
+    }
+
+    // 称号取得（シンプル例。必要に応じて拡張）
     function getTitle(player) {
+      if (player.title) return player.title;
       if (player.rate >= 80) return "王者";
       if (player.rate < 40) return "ルーキー";
-      if (player.consecutiveWins >= 3) return "勝ち逃げ";
-      if (player.matchesPlayed >= 10) return "皆勤王";
+      if ((player.consecutiveWins || 0) >= 3) return "勝ち逃げ";
+      if ((player.matchesPlayed || 0) >= 10) return "皆勤王";
       return "";
     }
 
     function renderRanking(players) {
       const tbody = document.getElementById("rankingTable");
       tbody.innerHTML = "";
-      const sorted = [...players].sort((a, b) => b.rate - a.rate);
+
+      // 1位レート取得
+      const topRate = players.length > 0 ? players.reduce((max, p) => Math.max(max, p.rate || 0), 0) : 0;
+
+      // ランク順にソート
+      const sorted = [...players].sort((a, b) => (a.currentRank || 9999) - (b.currentRank || 9999));
 
       sorted.forEach((p, index) => {
-        const tr = document.createElement("tr");
         const isFirst = index === 0;
-        const delta = p.rateChange || 0;
-        const deltaClass = delta > 0 ? "text-green-600" : (delta < 0 ? "text-red-500" : "text-gray-400");
-        const deltaText = delta > 0 ? `+${delta}` : delta;
-        const title = getTitle(p);
+        // 順位変動 = 前回順位 - 今回順位（プラスなら順位アップ）
+        const rankDiff = (p.prevRank !== undefined && p.currentRank !== undefined) ? (p.prevRank - p.currentRank) : 0;
+        const rankDiffText = rankDiff > 0 ? `↑${rankDiff}` : (rankDiff < 0 ? `↓${-rankDiff}` : "-");
+        const rankDiffClass = rankDiff > 0 ? "text-green-600" : (rankDiff < 0 ? "text-red-500" : "text-gray-400");
 
-        tr.className = `text-center ${isFirst ? 'bg-yellow-100 font-bold' : ''}`;
+        // 1位との差
+        const diffFromTop = (topRate - (p.rate || 0)) || 0;
+
+        // ボーナスポイントや特別ボーナスは 0 なら空白表示
+        const bonusPoints = p.bonusPoints || 0;
+        const specialBonus = p.specialBonus || 0;
+
+        const tr = document.createElement("tr");
+        tr.className = `${isFirst ? "bg-yellow-100 font-bold" : ""}`;
+
         tr.innerHTML = `
-          <td class="p-2">${index + 1}</td>
+          <td class="p-2">${p.currentRank || index + 1}</td>
           <td class="p-2 flex items-center justify-center gap-1">
             ${isFirst ? '<span class="crown">👑</span>' : ''}
-            <span>${p.name}</span>
+            <span>${p.name || "名無し"}</span>
             ${p.firstTimeTop ? '<span class="text-yellow-400 starburst">⭐</span>' : ''}
           </td>
-          <td class="p-2">${p.rate}</td>
-          <td class="p-2 ${deltaClass}">${deltaText}</td>
-          <td class="p-2">${title}</td>
+          <td class="p-2">${p.rate || 0}</td>
+          <td class="p-2">${formatWinRate(p)}</td>
+          <td class="p-2">${p.prevRank || "-"}</td>
+          <td class="p-2">${p.currentRank || "-"}</td>
+          <td class="p-2 ${rankDiffClass}">${rankDiffText}</td>
+          <td class="p-2">${bonusPoints > 0 ? `+${bonusPoints}` : (bonusPoints < 0 ? bonusPoints : "-")}</td>
+          <td class="p-2">${specialBonus > 0 ? `+${specialBonus}` : (specialBonus < 0 ? specialBonus : "-")}</td>
+          <td class="p-2">${diffFromTop}</td>
+          <td class="p-2">${getTitle(p)} ${p.comment || ""}</td>
         `;
+
         tbody.appendChild(tr);
       });
     }
