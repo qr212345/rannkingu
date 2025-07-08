@@ -4,41 +4,85 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>レートランキング（観覧専用）</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    body {
+      background-color: #f3f4f6;
+      padding: 16px;
+      font-family: Arial, sans-serif;
+      color: #222;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 700px;
+      text-align: center;
+    }
+    thead {
+      background-color: #e5e7eb;
+    }
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      vertical-align: middle;
+    }
+    tr.highlight {
+      background-color: #fff9c4;
+      font-weight: bold;
+    }
     .crown {
       animation: shine 2s infinite;
+      margin-left: 4px;
+      display: inline-block;
     }
     @keyframes shine {
       0%, 100% { filter: drop-shadow(0 0 5px gold); }
       50% { filter: drop-shadow(0 0 15px gold); }
     }
-    .starburst {
-      animation: starpop 1s ease-out forwards;
+    .text-left {
+      text-align: left;
+      padding-left: 1rem;
     }
-    @keyframes starpop {
-      from { transform: scale(0.5); opacity: 0; }
-      to { transform: scale(1.2); opacity: 1; }
+    .text-green {
+      color: #16a34a;
+      font-weight: bold;
+    }
+    .text-red {
+      color: #dc2626;
+      font-weight: bold;
+    }
+    .text-gray {
+      color: #6b7280;
     }
   </style>
 </head>
-<body class="bg-gray-100 p-4">
-  <h1 class="text-2xl font-bold mb-4">🏆 レートランキング</h1>
-  <div class="overflow-x-auto">
-    <table class="table-auto w-full bg-white rounded shadow text-center">
-      <thead class="bg-gray-200">
+<body>
+  <h1>🏆 レートランキング</h1>
+  <div class="table-wrapper">
+    <table>
+      <thead>
         <tr>
-          <th class="p-2">順位</th>
-          <th class="p-2">名前</th>
-          <th class="p-2">合計レート</th>
-          <th class="p-2">勝率</th>
-          <th class="p-2">前回順位</th>
-          <th class="p-2">今回順位</th>
-          <th class="p-2">変動</th>
-          <th class="p-2">ボーナスポイント</th>
-          <th class="p-2">特別ボーナス</th>
-          <th class="p-2">1位との差</th>
-          <th class="p-2">コメント・称号</th>
+          <th>順位</th>
+          <th>名前</th>
+          <th>合計レート</th>
+          <th>勝率</th>
+          <th>前回順位</th>
+          <th>今回順位</th>
+          <th>変動</th>
+          <th>ボーナス</th>
+          <th>特別ボーナス</th>
+          <th>1位との差</th>
+          <th>称号</th>
         </tr>
       </thead>
       <tbody id="rankingTable"></tbody>
@@ -46,90 +90,88 @@
   </div>
 
   <script>
-    let previousData = [];
+    const players = [
+      {
+        name: "田中",
+        rate: 85,
+        winRate: 0.75,
+        prevRank: 2,
+        currentRank: 1,
+        bonusPoints: 5,
+        specialBonus: "連勝ボーナス",
+        firstTimeTop: true,
+      },
+      {
+        name: "佐藤",
+        rate: 78,
+        winRate: 0.65,
+        prevRank: 1,
+        currentRank: 2,
+        bonusPoints: 2,
+        specialBonus: "",
+      },
+      {
+        name: "鈴木",
+        rate: 60,
+        winRate: 0.5,
+        prevRank: 3,
+        currentRank: 3,
+        bonusPoints: 0,
+        specialBonus: "",
+      },
+      {
+        name: "高橋",
+        rate: 40,
+        winRate: 0.3,
+        prevRank: 5,
+        currentRank: 4,
+        bonusPoints: -3,
+        specialBonus: "罰ゲーム",
+      }
+    ];
 
-    // 勝率のフォーマット（小数点以下2桁％表示）
-    function formatWinRate(player) {
-      if (!player.wins || !player.totalGames || player.totalGames === 0) return "-";
-      return ((player.wins / player.totalGames) * 100).toFixed(2) + "%";
-    }
-
-    // 称号取得（シンプル例。必要に応じて拡張）
-    function getTitle(player) {
-      if (player.title) return player.title;
-      if (player.rate >= 80) return "王者";
-      if (player.rate < 40) return "ルーキー";
-      if ((player.consecutiveWins || 0) >= 3) return "勝ち逃げ";
-      if ((player.matchesPlayed || 0) >= 10) return "皆勤王";
-      return "";
+    function getTitle(rate) {
+      if (rate >= 80) return "王者";
+      if (rate >= 60) return "猛者";
+      if (rate >= 40) return "一般";
+      if (rate >= 30) return "初心者";
+      return "修行中";
     }
 
     function renderRanking(players) {
       const tbody = document.getElementById("rankingTable");
       tbody.innerHTML = "";
+      const topRate = Math.max(...players.map(p => p.rate));
+      players.sort((a,b) => a.currentRank - b.currentRank);
 
-      // 1位レート取得
-      const topRate = players.length > 0 ? players.reduce((max, p) => Math.max(max, p.rate || 0), 0) : 0;
-
-      // ランク順にソート
-      const sorted = [...players].sort((a, b) => (a.currentRank || 9999) - (b.currentRank || 9999));
-
-      sorted.forEach((p, index) => {
-        const isFirst = index === 0;
-        // 順位変動 = 前回順位 - 今回順位（プラスなら順位アップ）
-        const rankDiff = (p.prevRank !== undefined && p.currentRank !== undefined) ? (p.prevRank - p.currentRank) : 0;
-        const rankDiffText = rankDiff > 0 ? `↑${rankDiff}` : (rankDiff < 0 ? `↓${-rankDiff}` : "-");
-        const rankDiffClass = rankDiff > 0 ? "text-green-600" : (rankDiff < 0 ? "text-red-500" : "text-gray-400");
-
-        // 1位との差
-        const diffFromTop = (topRate - (p.rate || 0)) || 0;
-
-        // ボーナスポイントや特別ボーナスは 0 なら空白表示
-        const bonusPoints = p.bonusPoints || 0;
-        const specialBonus = p.specialBonus || 0;
+      players.forEach((p) => {
+        const delta = p.prevRank !== undefined ? p.prevRank - p.currentRank : 0;
+        const deltaText = delta > 0 ? `↑${delta}` : (delta < 0 ? `↓${-delta}` : "→");
+        let deltaClass = "text-gray";
+        if (delta > 0) deltaClass = "text-green";
+        else if (delta < 0) deltaClass = "text-red";
 
         const tr = document.createElement("tr");
-        tr.className = `${isFirst ? "bg-yellow-100 font-bold" : ""}`;
+        if(p.currentRank === 1) tr.classList.add("highlight");
 
         tr.innerHTML = `
-          <td class="p-2">${p.currentRank || index + 1}</td>
-          <td class="p-2 flex items-center justify-center gap-1">
-            ${isFirst ? '<span class="crown">👑</span>' : ''}
-            <span>${p.name || "名無し"}</span>
-            ${p.firstTimeTop ? '<span class="text-yellow-400 starburst">⭐</span>' : ''}
-          </td>
-          <td class="p-2">${p.rate || 0}</td>
-          <td class="p-2">${formatWinRate(p)}</td>
-          <td class="p-2">${p.prevRank || "-"}</td>
-          <td class="p-2">${p.currentRank || "-"}</td>
-          <td class="p-2 ${rankDiffClass}">${rankDiffText}</td>
-          <td class="p-2">${bonusPoints > 0 ? `+${bonusPoints}` : (bonusPoints < 0 ? bonusPoints : "-")}</td>
-          <td class="p-2">${specialBonus > 0 ? `+${specialBonus}` : (specialBonus < 0 ? specialBonus : "-")}</td>
-          <td class="p-2">${diffFromTop}</td>
-          <td class="p-2">${getTitle(p)} ${p.comment || ""}</td>
+          <td>${p.currentRank} ${p.currentRank === 1 ? '<span class="crown">👑</span>' : ''}</td>
+          <td class="text-left">${p.name}</td>
+          <td>${p.rate}</td>
+          <td>${(p.winRate * 100).toFixed(1)}%</td>
+          <td>${p.prevRank !== undefined ? p.prevRank : "-"}</td>
+          <td>${p.currentRank}</td>
+          <td class="${deltaClass}">${deltaText}</td>
+          <td>${p.bonusPoints >= 0 ? "+" : ""}${p.bonusPoints}</td>
+          <td>${p.specialBonus || "-"}</td>
+          <td>${topRate - p.rate}</td>
+          <td>${getTitle(p.rate)}</td>
         `;
-
         tbody.appendChild(tr);
       });
     }
 
-    // 1. postMessage でデータを受け取る
-    window.addEventListener("message", (event) => {
-      if (!Array.isArray(event.data)) return;
-      renderRanking(event.data);
-      previousData = event.data;
-    });
-
-    // 2. fallback: localStorage polling
-    setInterval(() => {
-      const raw = localStorage.getItem("players");
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (JSON.stringify(data) !== JSON.stringify(previousData)) {
-        renderRanking(data);
-        previousData = data;
-      }
-    }, 3000);
+    renderRanking(players);
   </script>
 </body>
 </html>
